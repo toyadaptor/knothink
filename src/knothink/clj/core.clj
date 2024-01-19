@@ -161,33 +161,47 @@
     (let [[_ cmd con] (re-matches #"(?s)^\.([a-z]{2})(?:\s+(.*?)\s*)?$" thing)]
       [cmd con])))
 
+(defn escape-regex-char [text]
+  (if-not (empty? text)
+    (str/replace text #"(\.|\+|\*|\?|\^|\$|\(|\)|\[|\]|\{|\}|\||\\)" "\\\\$1")
+    nil))
 
+(defn escape-regex-html [text]
+  (if-not (empty? text)
+    (-> text
+        (str/replace #"<" "&lt;")
+        (str/replace #">" "&gt;"))
+    nil))
 
+(defn parse-snail-page [content]
+  (if-not (empty? content)
+    (-> content
+        (escape-regex-html)
+        (str/replace #"\r?\n" "<br />"))))
 
-
-(defn parse-grammar [content]
+(defn parse-text-page [content]
   (if-not (empty? content)
     (let [x (atom content)]
-      (doseq [[grp ext param] (re-seq #"@([a-z]+)(?:\s+(.*))@" content)]
-        (-> (piece-content (str "@fn-" ext))
-            read-string
-            eval)
-
-        (let [rs (-> (str "(fn-" ext " \"" param \" ")")
-                     read-string
-                     eval)]
-          (reset! x (str/replace @x (re-pattern grp) rs)))
-        #_(println "*" (str "(" ext " \"" param \" ")"))
-        #_(reset! x (str/replace @x (re-pattern grp) (eval (str "(" ext " \"" param \" ")")))))
+      (doseq [[grp ext param-str] (re-seq #"@([a-z]+)(?:\s+(.*))@" content)]
+        (let [grp-escape (escape-regex-char grp)
+              params (vec (map #(str/replace % #"^\"|\"$" "")
+                               (re-seq #"\".*?\"|[^\s]+" param-str)))]
+          (reset! x (str/replace @x
+                                 (re-pattern grp-escape)
+                                 (try
+                                   ((-> (str "fn-" ext) (symbol) (resolve))
+                                    params)
+                                   (catch Exception _
+                                     (format "error - %s" grp-escape)))))))
       (-> @x
-          (str/replace #"\r?\n" "<br />"))
-      )))
-
+          (str/replace #"\r?\n" "<br />")))))
 
 (defn parse-page [p-title]
   (-> (template)
       (str/replace "__TITLE__" p-title)
-      (str/replace "__CONTENT__" (or (parse-grammar (piece-content p-title)) "' ')"))
+      (str/replace "__CONTENT__" (if (str/starts-with? p-title "@")
+                                   (or (parse-snail-page (piece-content p-title)) "' ')")
+                                   (or (parse-text-page (piece-content p-title)) "' ')")))
       (str/replace "__TIME__" (piece-time p-title))))
 
 (defn re-read [p-title]
@@ -262,4 +276,16 @@
               {:port 8888}))
 
 (comment
+
+  (let [content "@a hehe \"헤 헤\"@"]
+    (doseq [[grp ext param] (re-seq #"@([a-z]+)(?:\s+(.*))@" content)]
+      (let [grp-escape (escape-regex-char grp)]
+        (println param)
+        )))
+
+  (let [x "hehe ne ne \"헤     헤\""
+        params (re-seq #"\".*?\"|[^\s]+" x)]
+    (map #(str/replace % #"^\"|\"$" "") params)
+    )
+
   (-main))
