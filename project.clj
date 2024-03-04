@@ -13,6 +13,7 @@
             [lein-cljsbuild "1.1.8"]
             [lein-ring "0.12.6"]]
   :main knothink.clj.core
+  :profiles {:uberjar {:aot :all}}
   :ring {:handler      knothink.clj.core/app-handler
          :auto-reload? true}
   :cljsbuild {:builds [{

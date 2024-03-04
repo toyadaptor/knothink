@@ -7,7 +7,7 @@
 확장 이름이 abc 라면, @fn-abc.clj 로 확장 파일을 구현 한다.  
 ```clojure
 ;; @fn-abc.clj
-(defn fn-abc [[param1 param2]]
+(defn fn-abc [& [param1 param2]]
   (str param1 param2))
 ```
 문서 내에 ``@abc hi knothink@`` 라고 호출 하였다면 해당 함수의 결과인 ``hi knothink`` 로 대치 된다. 

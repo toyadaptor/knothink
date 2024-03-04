@@ -1,4 +1,5 @@
 (ns knothink.clj.core
+  (:gen-class)
   (:use org.httpkit.server)
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
@@ -14,7 +15,6 @@
             [hiccup2.core :as hic]))
 
 ;todo
-;* resource 구분(extension 공유?) & gitignore.
 ;* page 의 meta 정보 저장.
 ;* comment 를 core 에 넣을 것인가.
 ;* upload 를 특정 command 에 묶을 것인가. upload 경로와 이름 문제.
@@ -22,6 +22,7 @@
 ;* pieces 의 git 연동.
 ;* page 이름 변경과 link 문제.
 ;* docker 및 배포 고민.
+
 (def password-file ".knothink.pw")
 (def config (atom {:resource-base-dir (env :resource-base-dir)
                    :resource-pieces   (str (env :resource-base-dir) "/pieces")
@@ -241,7 +242,6 @@
           [cmd con] (parse-thing thing)]
       (if (check-login @session (req :cookies))
         (do
-          #_(clojure.pprint/pprint req)
           (upload (req :multipart-params) title)
           (cond
             (= cmd "go") (goto con)

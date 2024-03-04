@@ -1,7 +1,0 @@
-main.
-
-@a lala "go to lala"@
-@a hehe@
-
-@img screen.png@
-@youtube https://www.youtube.com/embed/M2z6isSh37U?si=VMgaaRD7FWeKADSm@
