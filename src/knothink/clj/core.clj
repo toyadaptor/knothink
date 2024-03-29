@@ -4,12 +4,12 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [environ.core :refer [env]]
-            [ring.middleware.resource :refer [wrap-resource]]
+            [ring.middleware.file :refer [wrap-file]]
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.multipart-params :refer [wrap-multipart-params]]
             [ring.middleware.cookies :refer [wrap-cookies]]
             [ring.util.codec :refer [form-decode]]
-            [ring.util.response :refer [resource-response redirect]]
+            [ring.util.response :refer [redirect]]
             [crypto.password.scrypt :as scrypt]
             [tick.core :as t]
             [hiccup2.core :as hic]))
@@ -233,7 +233,6 @@
 
 (defn handler [req]
   (cond
-    (str/starts-with? (req :uri) "/assets/") (resource-response (req :uri))
     (str/starts-with? (req :uri) "/piece/")
     (let [title (-> (req :uri)
                     (form-decode)
@@ -267,7 +266,7 @@
   (-> handler
       wrap-cookies
       wrap-params
-      (wrap-resource "public" {:allow-symlinks? true})
+      (wrap-file (:resource-base-dir @config) {:prefer-handler? false})
       (wrap-multipart-params {:max-file-size  10240000
                               :max-file-count 15})))
 
