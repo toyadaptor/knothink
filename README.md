@@ -3,7 +3,24 @@
 낫띵으로 발음하며 실제로 nothing - 아무것도 아닌것 - 이기도 하다.
 주요 기능은 최소화하고 페이지 편집만으로 기능을 확장할 수 있는 것이 특징이라면 특징이다. 라고 하기엔 아직 개발 초기..
 
-# extension
+# 환경변수
+
+* ``GIT_USER`` git 사용자 이름
+* ``GIT_TOKEN`` git 토큰
+* ``GIT_REPOISTORY`` git 저장소 이름 (https://github.com/~)
+
+# 명령
+
+* ``.nn`` - 로그인 input type 을 password 로 변경
+* ``.hi <password>`` - 로그인
+* ``.bi`` - 로그아웃
+* ``.re`` - 페이지 편집(불러오기)
+* ``.re <text>`` - 페이지 편집(저장하기)
+* ``.gl`` - git clone & pull
+* ``.gu`` - git push 
+* ``.gc`` - git add & commit
+
+# 확장
 확장 이름이 abc 라면, @fn-abc.clj 로 확장 파일을 구현 한다.  
 ```clojure
 ;; @fn-abc.clj

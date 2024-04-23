@@ -1,7 +1,8 @@
 (ns knothink.clj.core
   (:gen-class)
   (:use org.httpkit.server)
-  (:require [clojure.java.io :as io]
+  (:require [clj-jgit.porcelain :as jgit]
+            [clojure.java.io :as io]
             [clojure.string :as str]
             [ring.middleware.file :refer [wrap-file]]
             [ring.middleware.params :refer [wrap-params]]
@@ -9,23 +10,28 @@
             [ring.middleware.cookies :refer [wrap-cookies]]
             [ring.util.codec :refer [form-decode]]
             [ring.util.response :refer [redirect]]
+            [environ.core :refer [env]]
             [crypto.password.scrypt :as scrypt]
             [tick.core :as t]
-            [hiccup2.core :as hic]))
+            [hiccup2.core :as hic])
+  (:import (java.io FileNotFoundException)))
 
 ;todo
 ;* page 의 meta 정보 저장.
 ;* comment 를 core 에 넣을 것인가.
 ;* upload 를 특정 command 에 묶을 것인가. upload 경로와 이름 문제.
 ;* upload 파일을 검색하는 방법.
-;* pieces 의 git 연동.
 ;* page 이름 변경과 link 문제.
 
-(def config (atom {:resource-base-dir "/tmp/knothink-data"
-                   :resource-pieces   "/tmp/knothink-data/pieces"
-                   :resource-assets   "/tmp/knothink-data/assets"
-                   :password-file     "/tmp/knothink-pw/knothink.pw"
-                   :start-page        "main"}))
+(def config (atom {:base-dir        "/tmp/knothink"
+                   :password-file   "/tmp/knothink/pw"
+                   :resource-dir    "/tmp/knothink/resources"
+                   :resource-pieces "/tmp/knothink/resources/pieces"
+                   :resource-assets "/tmp/knothink/resources/assets"
+                   :git             {:login (env :git-user)
+                                     :pw    (env :git-token)
+                                     :repo  (env :git-repository)}
+                   :start-page      "main"}))
 
 (def session (atom {:session-id nil
                     :expires    nil}))
@@ -36,11 +42,11 @@
    :body    nil})
 
 
-(defn rand-str [len]
+(defn- rand-str [len]
   (apply str (take len (repeatedly #(get "0123456789abcdefghijklmnopqrstuvwxyz"
                                          (rand-int 36))))))
 
-(defn gen-session []
+(defn- gen-session []
   (let [id (rand-str 50)]
     (reset! session {:session-id id})))
 
@@ -92,14 +98,13 @@
 
 (defn load-fn
   ([]
-   nil
-   #_(doseq [f (seq (.list (io/file (@config :resource-pieces))))]
-       (if (str/starts-with? f "@fn")
-         (println (-> f
-                      (str/replace #"\..*" "")
-                      (piece-content)
-                      read-string
-                      eval)))))
+   (doseq [f (seq (.list (io/file (@config :resource-pieces))))]
+     (if (str/starts-with? f "@fn")
+       (println (-> f
+                    (str/replace #"\..*" "")
+                    (piece-content)
+                    read-string
+                    eval)))))
   ([name]
    (-> (piece-content (str "@fn-" name))
        read-string
@@ -149,6 +154,46 @@
     (upload-copy (if (map? file1) [file1] file1)
                  title)))
 
+(defn- git-clone []
+  (try
+    (jgit/with-credentials (@config :git)
+                           (jgit/git-clone (-> @config :git :repo)
+                                           :branch "main"
+                                           :dir (@config :resource-dir)))
+    "'cloned'"
+    (catch Exception e
+      (str "'" (.getMessage e) "'"))))
+
+(defn- git-pull []
+  (try
+    (jgit/with-credentials (@config :git)
+                           (jgit/git-pull (jgit/load-repo (@config :resource-dir))))
+    "'pulled'"
+    (catch FileNotFoundException _
+      (git-clone))))
+
+(defn- git-push []
+  (try
+    (jgit/with-credentials (@config :git)
+                           (jgit/git-push (jgit/load-repo (@config :resource-dir))))
+    "'pushed'"
+    (catch FileNotFoundException _
+      (git-clone))))
+
+(defn- git-add-and-commit []
+  (try
+    (let [repo (jgit/load-repo (@config :resource-dir))]
+      (jgit/with-credentials (@config :git)
+                             (jgit/git-add repo ".")
+                             (jgit/git-commit repo
+                                              "commit"
+                                              :committer {:name  "knothink"
+                                                          :email "knothink@knothink.com"}))
+      "'committed'")
+    (catch Exception e
+      (str "'" (.getMessage e) "'"))))
+
+
 
 
 (defn login [raw]
@@ -160,25 +205,18 @@
                                          :value   session-id}})))
     (-> (redirect "/piece/who-a-u"))))
 
-(defn logout []
-  (-> (redirect (str "/piece/" (@config :start-page)))
-      (assoc :cookies {"session-id" {:max-age 0
-                                     :path    "/"
-                                     :value   nil}})))
-(defn goto [con]
-  (redirect (str "/piece/" con)))
 
-(defn parse-thing [thing]
+(defn- parse-thing [thing]
   (if-not (empty? thing)
     (let [[_ cmd con] (re-matches #"(?s)^\.([a-z]{2})(?:\s+(.*?)\s*)?$" thing)]
       [cmd con])))
 
-(defn escape-regex-char [text]
+(defn- escape-regex-char [text]
   (if-not (empty? text)
     (str/replace text #"(\.|\+|\*|\?|\^|\$|\(|\)|\[|\]|\{|\}|\||\\)" "\\\\$1")
     nil))
 
-(defn escape-regex-html [text]
+(defn- escape-regex-html [text]
   (if-not (empty? text)
     (-> text
         (str/replace #"<" "&lt;")
@@ -217,18 +255,31 @@
                                    (or (parse-snail-page (piece-content p-title)) "' ')")
                                    (or (parse-text-page (piece-content p-title)) "' ')")))
       (str/replace "__TIME__" (piece-time p-title))))
+
 (defn response [title thing thing-con]
   (-> default-response
       (assoc :body (-> (parse-page title)
                        (str/replace "__THING__" thing)
                        (str/replace "__THING_CON__" thing-con)))))
-(defn re-read [p-title]
+
+
+(defn cmd-logout []
+  (-> (redirect (str "/piece/" (@config :start-page)))
+      (assoc :cookies {"session-id" {:max-age 0
+                                     :path    "/"
+                                     :value   nil}})))
+(defn cmd-goto [con]
+  (redirect (str "/piece/" con)))
+
+
+(defn cmd-re-read [p-title]
   (response p-title (template-thing-in) (str ".re " (piece-content p-title))))
 
-(defn re-write [p-title con]
+(defn cmd-re-write [p-title con]
   (with-open [w (io/writer (piece-path p-title))]
     (.write w con))
   (response p-title (template-thing-in) ""))
+
 
 (defn handler [req]
   (cond
@@ -242,14 +293,18 @@
         (do
           (upload (req :multipart-params) title)
           (cond
-            (= cmd "go") (goto con)
-            (= cmd "bi") (logout)
+            (= cmd "go") (cmd-goto con)
+            (= cmd "bi") (cmd-logout)
             (= cmd "re") (if (empty? con)
-                           (re-read title)
-                           (re-write title con))
+                           (cmd-re-read title)
+                           (cmd-re-write title con))
+            (= cmd "gc") (response title (template-thing-in) (git-add-and-commit))
+            (= cmd "gl") (response title (template-thing-in) (git-pull))
+            (= cmd "gu") (response title (template-thing-in) (git-push))
+
             :else (if (and (nil? cmd)
                            (piece-exist? thing))
-                    (goto thing)
+                    (cmd-goto thing)
                     (response title (template-thing-in) thing))))
         ; guest
         (cond
@@ -265,7 +320,7 @@
   (-> handler
       wrap-cookies
       wrap-params
-      (wrap-file (:resource-base-dir @config) {:prefer-handler? false})
+      (wrap-file (@config :resource-dir) {:prefer-handler? false})
       (wrap-multipart-params {:max-file-size  10240000
                               :max-file-count 15})))
 
