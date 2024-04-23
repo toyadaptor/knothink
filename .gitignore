@@ -11,8 +11,5 @@ pom.xml.asc
 .idea/
 out/
 .cpcache/
-#resources/public/assets/*
-#resources/public/pieces/*
-.knothink.pw
 profiles.clj
 resources/public

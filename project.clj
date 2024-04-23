@@ -1,4 +1,4 @@
-(defproject knothink "0.1.0-SNAPSHOT"
+(defproject knothink "0.1.2-SNAPSHOT"
   :dependencies [[org.clojure/clojure "1.11.1"]
                  [org.clojure/clojurescript "1.11.54"]
                  [environ "1.2.0"]

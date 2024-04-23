@@ -3,7 +3,6 @@
   (:use org.httpkit.server)
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [environ.core :refer [env]]
             [ring.middleware.file :refer [wrap-file]]
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.multipart-params :refer [wrap-multipart-params]]
@@ -21,12 +20,11 @@
 ;* upload 파일을 검색하는 방법.
 ;* pieces 의 git 연동.
 ;* page 이름 변경과 link 문제.
-;* docker 및 배포 고민.
 
-(def password-file ".knothink.pw")
-(def config (atom {:resource-base-dir (env :resource-base-dir)
-                   :resource-pieces   (str (env :resource-base-dir) "/pieces")
-                   :resource-assets   (str (env :resource-base-dir) "/assets")
+(def config (atom {:resource-base-dir "/tmp/knothink-data"
+                   :resource-pieces   "/tmp/knothink-data/pieces"
+                   :resource-assets   "/tmp/knothink-data/assets"
+                   :password-file     "/tmp/knothink-pw/knothink.pw"
                    :start-page        "main"}))
 
 (def session (atom {:session-id nil
@@ -48,8 +46,10 @@
 
 (defn check-or-new-password [raw password-file]
   (if-not (.exists (io/file password-file))
-    (with-open [w (io/writer password-file)]
-      (.write w (scrypt/encrypt raw))))
+    (do
+      (io/make-parents password-file)
+      (with-open [w (io/writer password-file)]
+        (.write w (scrypt/encrypt raw)))))
   (scrypt/check raw (slurp password-file)))
 
 (defn check-login [session cookie]
@@ -92,13 +92,14 @@
 
 (defn load-fn
   ([]
-   (doseq [f (seq (.list (io/file (@config :resource-pieces))))]
-     (if (str/starts-with? f "@fn")
-       (println (-> f
-                    (str/replace #"\..*" "")
-                    (piece-content)
-                    read-string
-                    eval)))))
+   nil
+   #_(doseq [f (seq (.list (io/file (@config :resource-pieces))))]
+       (if (str/starts-with? f "@fn")
+         (println (-> f
+                      (str/replace #"\..*" "")
+                      (piece-content)
+                      read-string
+                      eval)))))
   ([name]
    (-> (piece-content (str "@fn-" name))
        read-string
@@ -114,9 +115,7 @@
                       [:body
                        [:p "__TITLE__"]
                        [:p "__CONTENT__"]
-                       [:p "__THING__"]
-                       [:script {:src "/assets/main.js" :type "text/javascript"}]]
-                      ])))))
+                       [:p "__THING__"]]])))))
 
 (defn template-thing-in []
   (let [p "@tpl-thing-in"
@@ -153,7 +152,7 @@
 
 
 (defn login [raw]
-  (if (check-or-new-password raw password-file)
+  (if (check-or-new-password raw (@config :password-file))
     (let [{:keys [session-id]} (gen-session)]
       (-> (redirect (str "/piece/" (@config :start-page)))
           (assoc :cookies {"session-id" {:max-age 86400
@@ -277,6 +276,8 @@
               {:port 8888}))
 
 (comment
+  (let [x (java.io.File/createTempFile "prefix" "suffix")]
+    (.getPath x))
 
   (load-fn)
   (-main))
