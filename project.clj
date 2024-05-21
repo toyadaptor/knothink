@@ -1,6 +1,7 @@
 (defproject knothink "0.1.2-SNAPSHOT"
   :dependencies [[org.clojure/clojure "1.11.1"]
                  [org.clojure/clojurescript "1.11.54"]
+                 [clj-commons/fs "1.6.307"]
                  [environ "1.2.0"]
                  [http-kit "2.3.0"]
                  [hiccup "2.0.0-RC2"]
@@ -10,7 +11,8 @@
                  [tick/tick "0.7.5"]
                  [ring/ring-jetty-adapter "1.9.6"]
                  [metosin/reitit-ring "0.2.6"]
-                 [clj-jgit "1.0.2"]]
+                 [clj-jgit "1.0.2"]
+                 [biscuit "1.0.0"]]
   :source-paths ["src"]
   :plugins [[lein-environ "1.2.0"]
             [lein-cljsbuild "1.1.8"]
