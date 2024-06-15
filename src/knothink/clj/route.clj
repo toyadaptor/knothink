@@ -29,6 +29,8 @@
       (str (hic/html (clojure.edn/read-string (or (piece-content p)
                                                   ""))))
       (str (hic/html [:html
+                      [:head
+                       [:meta {:charset "utf-8"}]]
                       [:body
                        [:p "__TITLE__"]
                        [:p "__CONTENT__"]
