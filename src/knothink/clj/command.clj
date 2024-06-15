@@ -19,9 +19,7 @@
 
 (defn piece-path [name]
   (let [dir (crc8-hash name)]
-    (str (@config :resource-pieces) "/" dir "/" name
-         (if (str/starts-with? name "@")
-           ".clj" ".txt"))))
+    (str (@config :resource-pieces) "/" dir "/" name ".txt")))
 
 (defn piece-exist? [name]
   (if-not (empty? name)
@@ -92,8 +90,8 @@
                              (jgit/git-add repo ".")
                              (jgit/git-commit repo
                                               "commit"
-                                              :committer {:name  "knothink"
-                                                          :email "knothink@knothink.com"}))
+                                              :committer {:name  "noname"
+                                                          :email "noname@knothink.com"}))
       "'committed'")
     (catch Exception e
       (str "'" (.getMessage e) "'"))))
@@ -143,7 +141,7 @@
                                            :path    "/"
                                            :value   nil}}}})
 (defn cmd-goto [{:keys [con]}]
-  {:redirect-info {:url (str "/piece/" con)}})
+  {:redirect-info {:url (str "/piece/" (str/replace con #" " "-"))}})
 
 
 (defn cmd-re-read [title]
