@@ -32,7 +32,9 @@
 
 (defn -main [& _]
   ;(load-fn)
-  (conf/load-config)
+  (conf/load-config-addition)
   (run-server r/app-handler
               {:port 8888}))
+
+
 

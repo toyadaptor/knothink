@@ -26,7 +26,7 @@
 (defn piece-exist? [name]
   (if-not (empty? name)
     (let [path (piece-path name)]
-      (.exists (io/file path)))
+      (fs/exists? path))
     false))
 
 (defn piece-content [name]
@@ -37,8 +37,8 @@
 (defn piece-time [name]
   (let [path (piece-path name)]
     (str/replace (t/format (t/formatter "yyyyMMdd hhmmss")
-                           (if (.exists (io/file path))
-                             (-> (io/file path)
+                           (if (fs/exists? path)
+                             (-> (fs/file path)
                                  .lastModified
                                  (java.util.Date.)
                                  (t/zoned-date-time))
@@ -49,9 +49,11 @@
 (defn upload-copy [upload-info title]
   (doseq [[i {:keys [filename tempfile size]}] (map-indexed vector upload-info)]
     (if (and (< 0 size) (str/index-of filename "."))
-      (io/copy (io/file tempfile)
-               (io/file (str (@config :resource-assets) "/" title i
-                             (str/replace filename #"^.*\." ".")))))))
+      (fs/copy tempfile (str (@config :resource-assets) "/" title i
+                             (str/replace filename #"^.*\." "."))) ; TODO check
+      #_(io/copy (fs/file tempfile)
+                 (fs/file (str (@config :resource-assets) "/" title i
+                               (str/replace filename #"^.*\." ".")))))))
 (defn upload [multipart {:keys [title]}]
   (let [file1 (get multipart "file1")]
     (upload-copy (if (map? file1) [file1] file1)
@@ -130,10 +132,6 @@
                                                :path    "/"
                                                :value   session-id}}}})
     {:redirect-info {:url "/piece/who-a-u"}}))
-
-(defn cmd-knock [{:keys [title]}]
-  {:title     title
-   :thing-con ""})
 
 (defn cmd-logout []
   (println {:redirect-info {:url     (str "/piece/" (@config :start-page))

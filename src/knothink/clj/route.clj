@@ -33,13 +33,7 @@
                        [:p "__TITLE__"]
                        [:p "__CONTENT__"]
                        [:p "__THING__"]]])))))
-(defn parse-page [p-title]
-  (-> (template)
-      (str/replace "__TITLE__" p-title)
-      (str/replace "__CONTENT__" (if (str/starts-with? p-title "@")
-                                   (or (parse-snail-page (piece-content p-title)) "' ')")
-                                   (or (parse-text-page (piece-content p-title)) "' ')")))
-      (str/replace "__TIME__" (piece-time p-title))))
+
 (defn template-thing-in []
   (let [p "@tpl-thing-in"
         path (piece-path p)]
@@ -58,6 +52,13 @@
       (str (hic/html [:form {:method "post"}
                       [:p [:input {:type "text" :id "thing" :name "thing" :autocomplete "off"}]]
                       [:p [:button {:type "submit" :id "submit"} "submit"]]])))))
+(defn parse-page [title]
+  (-> (template)
+      (str/replace "__TITLE__" title)
+      (str/replace "__CONTENT__" (if (str/starts-with? title "@")
+                                   (or (parse-snail-page (piece-content title)) "' ')")
+                                   (or (parse-text-page (piece-content title)) "' ')")))
+      (str/replace "__TIME__" (piece-time title))))
 
 (defn response [thing-tpl {:keys [title thing-con redirect-info]}]
   (if-not (nil? redirect-info)
@@ -108,7 +109,9 @@
   (-> handler
       wrap-cookies
       wrap-params
-      (wrap-file (@config :resource-dir) {:prefer-handler? false})
+      (wrap-file (:resource-dir @config) {:prefer-handler? false})
       (wrap-multipart-params {:max-file-size  10240000
                               :max-file-count 15})))
+
+
 
