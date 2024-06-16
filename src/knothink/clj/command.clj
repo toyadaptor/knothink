@@ -19,7 +19,7 @@
 
 (defn piece-path [name]
   (let [dir (crc8-hash name)]
-    (str (@config :resource-pieces) "/" dir "/" name ".txt")))
+    (str (@config :pieces) "/" dir "/" name ".txt")))
 
 (defn piece-exist? [name]
   (if-not (empty? name)
@@ -47,10 +47,10 @@
 (defn upload-copy [upload-info title]
   (doseq [[i {:keys [filename tempfile size]}] (map-indexed vector upload-info)]
     (if (and (< 0 size) (str/index-of filename "."))
-      (fs/copy tempfile (str (@config :resource-assets) "/" title i
+      (fs/copy tempfile (str (@config :assets) "/" title i
                              (str/replace filename #"^.*\." "."))) ; TODO check
       #_(io/copy (fs/file tempfile)
-                 (fs/file (str (@config :resource-assets) "/" title i
+                 (fs/file (str (@config :assets) "/" title i
                                (str/replace filename #"^.*\." ".")))))))
 (defn upload [multipart {:keys [title]}]
   (let [file1 (get multipart "file1")]
@@ -62,7 +62,7 @@
     (jgit/with-credentials (@config :git)
                            (jgit/git-clone (-> @config :git :repo)
                                            :branch "main"
-                                           :dir (@config :resource-dir)))
+                                           :dir (@config :pieces)))
     "'cloned'"
     (catch Exception e
       (str "'" (.getMessage e) "'"))))
@@ -70,7 +70,7 @@
 (defn git-pull []
   (try
     (jgit/with-credentials (@config :git)
-                           (jgit/git-pull (jgit/load-repo (@config :resource-dir))))
+                           (jgit/git-pull (jgit/load-repo (@config :pieces))))
     "'pulled'"
     (catch FileNotFoundException _
       (git-clone))))
@@ -78,14 +78,14 @@
 (defn git-push []
   (try
     (jgit/with-credentials (@config :git)
-                           (jgit/git-push (jgit/load-repo (@config :resource-dir))))
+                           (jgit/git-push (jgit/load-repo (@config :pieces))))
     "'pushed'"
     (catch FileNotFoundException _
       (git-clone))))
 
 (defn git-add-and-commit []
   (try
-    (let [repo (jgit/load-repo (@config :resource-dir))]
+    (let [repo (jgit/load-repo (@config :pieces))]
       (jgit/with-credentials (@config :git)
                              (jgit/git-add repo ".")
                              (jgit/git-commit repo

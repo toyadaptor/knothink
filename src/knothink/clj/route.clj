@@ -111,7 +111,8 @@
   (-> handler
       wrap-cookies
       wrap-params
-      (wrap-file (:resource-dir @config) {:prefer-handler? false})
+      (wrap-file (:assets @config) {:prefer-handler? false
+                                    :allow-symlinks? true})
       (wrap-multipart-params {:max-file-size  10240000
                               :max-file-count 15})))
 

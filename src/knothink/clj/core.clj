@@ -17,7 +17,7 @@
 
 ;(defn load-fn
 ;  ([]
-;   (doseq [f (seq (.list (io/file (@config :resource-pieces))))]
+;   (doseq [f (seq (.list (io/file (@config :pieces))))]
 ;     (if (str/starts-with? f "@fn")
 ;       (println (-> f
 ;                    (str/replace #"\..*" "")
