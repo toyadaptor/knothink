@@ -9,7 +9,10 @@
             [clojure.string :as str]
             [me.raynes.fs :as fs]
             [tick.core :as t])
-  (:import (java.io FileNotFoundException)))
+  (:import (java.io FileNotFoundException)
+           (java.nio.file StandardCopyOption)))
+
+
 
 (def default-response
   {:status  200
@@ -17,23 +20,52 @@
    :body    nil})
 
 
-(defn piece-path [name]
+
+
+(defn piece-file-path [name]
   (let [dir (crc8-hash name)]
     (str (@config :pieces) "/" dir "/" name ".txt")))
+(defn piece-dir-path [name]
+  (let [dir (crc8-hash name)]
+    (str (@config :pieces) "/" dir)))
+
+(defn asset-dir-path [name]
+  (let [dir (crc8-hash name)]
+    (str (@config :assets) "/asset/" dir)))
+
+(defn asset-symlink-make [file]
+  (let [[name ext] (fs/split-ext file)]
+    (if-not (= ".txt" ext)
+      (let [target (str (piece-dir-path name) "/" file)
+            path (str (asset-dir-path name) "/" file)]
+        (fs/mkdirs (fs/parent path))
+        (fs/sym-link path target)))))
+
+(defn piece-put-in-drawer []
+  (try
+    (doseq [file (filter #(fs/file? %) (fs/list-dir (:pieces @config)))]
+      (let [[name ext] (fs/split-ext file)
+            target (str (piece-dir-path name) "/" name ext)]
+        (fs/mkdirs (fs/parent target))
+        (fs/move file target StandardCopyOption/REPLACE_EXISTING)
+        (asset-symlink-make (str name ext))))
+    "'moved'"
+    (catch Exception e
+      (str "'" (.getMessage e) "'"))))
+
 
 (defn piece-exist? [name]
   (if-not (empty? name)
-    (let [path (piece-path name)]
-      (fs/exists? path))
+    (fs/exists? (piece-file-path name))
     false))
 
 (defn piece-content [name]
   (if (piece-exist? name)
-    (slurp (piece-path name))
+    (slurp (piece-file-path name))
     nil))
 
 (defn piece-time [name]
-  (let [path (piece-path name)]
+  (let [path (piece-file-path name)]
     (str/replace (t/format (t/formatter "yyyyMMdd hhmmss")
                            (if (fs/exists? path)
                              (-> (fs/file path)
@@ -43,6 +75,23 @@
                              (t/zoned-date-time (t/now))))
                  #"0" "o")))
 
+(defn load-fn
+  ([]
+   (doseq [f (fs/find-files (:pieces @config) #"^@.*")]
+     (let [name (fs/name f)]
+       (println name)
+       (if (clojure.string/starts-with? name "@fn")
+         (-> name
+             (clojure.string/replace #"\..*" "")
+             (piece-content)
+             read-string
+             eval)))))
+  ([name]
+   (-> (piece-content (str "@fn-" name))
+       read-string
+       eval)))
+
+(comment (load-fn "img"))
 
 (defn upload-copy [upload-info title]
   (doseq [[i {:keys [filename tempfile size]}] (map-indexed vector upload-info)]
@@ -71,6 +120,7 @@
   (try
     (jgit/with-credentials (@config :git)
                            (jgit/git-pull (jgit/load-repo (@config :pieces))))
+    (piece-put-in-drawer)
     "'pulled'"
     (catch FileNotFoundException _
       (git-clone))))
@@ -149,7 +199,7 @@
    :thing-con (piece-content title)})
 
 (defn cmd-re-write [title con]
-  (let [path (piece-path title)]
+  (let [path (piece-file-path title)]
     (fs/mkdirs (fs/parent path))
     (with-open [w (io/writer path)]
       (.write w con)))
@@ -173,6 +223,10 @@
   {:title     title
    :thing-con (git-push)})
 
+(defn cmd-put-in-drawer [{:keys [title]}]
+  {:title     title
+   :thing-con (piece-put-in-drawer)})
+
 (defn cmd-in-else [{:keys [title thing cmd]}]
   (if (and (nil? cmd)
            (piece-exist? thing))
@@ -183,4 +237,3 @@
 (defn cmd-out-else [{:keys [title thing]}]
   {:title     title
    :thing-con thing})
-

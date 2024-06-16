@@ -24,7 +24,7 @@
 
 (defn template []
   (let [p "@tpl"
-        path (piece-path p)]
+        path (piece-file-path p)]
     (if (.exists (io/file path))
       (str (hic/html (clojure.edn/read-string (or (piece-content p)
                                                   ""))))
@@ -38,7 +38,7 @@
 
 (defn template-thing-in []
   (let [p "@tpl-thing-in"
-        path (piece-path p)]
+        path (piece-file-path p)]
     (if (.exists (io/file path))
       (str (hic/html (clojure.edn/read-string (or (piece-content p)
                                                   ""))))
@@ -48,7 +48,7 @@
 
 (defn template-thing-out []
   (let [p "@tpl-thing-out"
-        path (piece-path p)]
+        path (piece-file-path p)]
     (if (.exists (io/file path))
       (str (hic/html (clojure.edn/read-string (piece-content p))))
       (str (hic/html [:form {:method "post"}
@@ -70,6 +70,8 @@
         (assoc :body (-> (parse-page title)
                          (str/replace "__THING__" thing-tpl)
                          (str/replace "__THING_CON__" thing-con))))))
+
+
 
 
 (defn handler [req]
@@ -95,6 +97,7 @@
                       (= cmd "gc") (cmd-git-commit input)
                       (= cmd "gl") (cmd-git-pull input)
                       (= cmd "gu") (cmd-git-push input)
+                      (= cmd "dr") (cmd-put-in-drawer input)
                       :else (cmd-in-else input))))
 
         ; guest

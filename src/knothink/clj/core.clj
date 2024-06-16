@@ -2,7 +2,8 @@
   (:gen-class)
   (:use org.httpkit.server)
   (:require [knothink.clj.route :as r]
-            [knothink.clj.config :as conf]))
+            [knothink.clj.config :refer [load-config-addition]]
+            [knothink.clj.command :as cmd]))
 
 
 
@@ -14,25 +15,9 @@
 ;* page 이름 변경과 link 문제.
 
 
-
-;(defn load-fn
-;  ([]
-;   (doseq [f (seq (.list (io/file (@config :pieces))))]
-;     (if (str/starts-with? f "@fn")
-;       (println (-> f
-;                    (str/replace #"\..*" "")
-;                    (piece-content)
-;                    read-string
-;                    eval)))))
-;  ([name]
-;   (-> (piece-content (str "@fn-" name))
-;       read-string
-;       eval)))
-
-
 (defn -main [& _]
-  ;(load-fn)
-  (conf/load-config-addition)
+  (cmd/load-fn)
+  (load-config-addition)
   (run-server r/app-handler
               {:port 8888}))
 
