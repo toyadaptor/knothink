@@ -194,7 +194,7 @@
   (-> "knothink.clj.ext/fn-img" (symbol) (resolve)))
 
 
-(defn cmd-login [{:keys [con]}]                             ; keys 모두 빼자. 필요한것만 넘기기
+(defn login [con]
   (if (check-or-new-password con (@config :password-file))
     (let [{:keys [session-id]} (gen-session)]
       {:redirect-info {:url     (str "/piece/" (@config :start-page))
@@ -203,20 +203,11 @@
                                                :value   session-id}}}})
     {:redirect-info {:url "/piece/who-a-u"}}))
 
-(defn cmd-logout []
-  {:redirect-info {:url     (str "/piece/" (@config :start-page))
-                   :cookies {"session-id" {:max-age 0
-                                           :path    "/"
-                                           :value   nil}}}})
-(defn cmd-goto [{:keys [con]}]
-  {:redirect-info {:url (str "/piece/" (str/replace con #" " "-"))}})
-
-
-(defn cmd-re-read [title]
+(defn re-read [title]
   {:title     title
    :thing-con (str ".re " (piece-content title))})
 
-(defn cmd-re-write [title con]
+(defn re-write [title con]
   (let [path (piece-file-path title)]
     (fs/mkdirs (fs/parent path))
     (with-open [w (io/writer path)]
@@ -224,34 +215,4 @@
   {:title     title
    :thing-con ""})
 
-(defn cmd-rewrite [{:keys [title con]}]
-  (if (empty? con)
-    (cmd-re-read title)
-    (cmd-re-write title con)))
 
-(defn cmd-git-commit [{:keys [title]}]
-  {:title     title
-   :thing-con (git-add-and-commit)})
-
-(defn cmd-git-pull [{:keys [title]}]
-  {:title     title
-   :thing-con (git-pull)})
-
-(defn cmd-git-push [{:keys [title]}]
-  {:title     title
-   :thing-con (git-push)})
-
-(defn cmd-put-in-drawer [{:keys [title]}]
-  {:title     title
-   :thing-con (piece-put-in-drawer)})
-
-(defn cmd-in-else [{:keys [title thing cmd]}]
-  (if (and (nil? cmd)
-           (piece-exist? thing))
-    (cmd-goto thing)
-    {:title     title
-     :thing-con thing}))
-
-(defn cmd-out-else [{:keys [title thing]}]
-  {:title     title
-   :thing-con thing})

@@ -86,25 +86,35 @@
                  :thing thing
                  :cmd   cmd
                  :con   con}]
+      (println "input-" input)
       (if (check-login (req :cookies))
         (do
           (upload (req :multipart-params) input)
           (response (template-thing-in)
                     (cond
-                      (= cmd "go") (cmd-goto input)
-                      (= cmd "bi") (cmd-logout)
-                      (= cmd "re") (cmd-rewrite input)
-                      (= cmd "gc") (cmd-git-commit input)
-                      (= cmd "gl") (cmd-git-pull input)
-                      (= cmd "gu") (cmd-git-push input)
-                      (= cmd "dr") (cmd-put-in-drawer input)
-                      :else (cmd-in-else input))))
+                      (= cmd "go") {:redirect-info {:url (str "/piece/" (str/replace con #" " "-"))}}
+                      (= cmd "bi") {:redirect-info {:url     (str "/piece/" (@config :start-page))
+                                                    :cookies {"session-id" {:max-age 0
+                                                                            :path    "/"
+                                                                            :value   nil}}}}
+                      (= cmd "re") (if (empty? con)
+                                     (re-read title)
+                                     (re-write title con))
+                      (= cmd "gc") {:title title :thing-con (git-add-and-commit)}
+                      (= cmd "gl") {:title title :thing-con (git-pull)}
+                      (= cmd "gu") {:title title :thing-con (git-push)}
+                      (= cmd "dr") {:title title :thing-con (piece-put-in-drawer)}
+                      :else (if (and (nil? cmd)
+                                     (piece-exist? thing))
+                              {:redirect-info {:url (str "/piece/" (str/replace thing #" " "-"))}}
+                              {:title title :thing-con thing}))))
 
         ; guest
         (response (template-thing-out)
                   (cond
-                    (= cmd "hi") (cmd-login input)
-                    :else (cmd-out-else input)))))
+                    (= cmd "hi") (login con)
+                    :else {:title     title
+                           :thing-con thing}))))
     :else (-> (redirect (str "/piece/" (@config :start-page))))
     :default {:status  404
               :headers {"Content-Type" "text/html"}
