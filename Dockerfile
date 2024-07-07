@@ -1,8 +1,8 @@
 FROM amd64/clojure:openjdk-17-lein-buster AS build-jar
 WORKDIR /knothink
-RUN mkdir -p /tmp/knothink-data
 
 COPY . .
+RUN lein deps
 RUN lein uberjar
 
 FROM amd64/amazoncorretto:17-alpine

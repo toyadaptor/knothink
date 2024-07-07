@@ -1,1 +1,1 @@
-java -jar knothink.jar
+java -jar /knothink/knothink.jar

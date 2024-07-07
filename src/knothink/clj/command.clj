@@ -4,6 +4,7 @@
   (:require [knothink.clj.util :refer :all]
             [knothink.clj.config :refer [config]]
             [knothink.clj.session :refer [gen-session check-or-new-password]]
+            [hiccup2.core :as hic]
             [clj-jgit.porcelain :as jgit]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -75,23 +76,40 @@
                              (t/zoned-date-time (t/now))))
                  #"0" "o")))
 
+(defn safe-eval [code]
+  (try
+    (binding [*ns* (the-ns 'knothink.clj.ext)]
+      (refer 'clojure.core)
+      (eval code))
+    (catch Exception e
+      (println "Error during evaluation:" e))))
+
+(defn process-file [f]
+  (let [name (fs/name f)]
+    (when (str/starts-with? name "@fn")
+      (-> name
+          (str/replace #"\..*" "")
+          (piece-content)
+          read-string
+          safe-eval))))
+
 (defn load-fn
   ([]
    (doseq [f (fs/find-files (:pieces @config) #"^@.*")]
-     (let [name (fs/name f)]
-       (println name)
-       (if (clojure.string/starts-with? name "@fn")
-         (-> name
-             (clojure.string/replace #"\..*" "")
-             (piece-content)
-             read-string
-             eval)))))
+     (try
+       (println "load - " f)
+       (process-file f)
+       (catch Exception e
+         (println "Error processing file:" (.getMessage e))))))
   ([name]
-   (-> (piece-content (str "@fn-" name))
-       read-string
-       eval)))
-
-(comment (load-fn "img"))
+   (try
+     (let [content (piece-content (str "@fn-" name))]
+       (println "***" content)
+       (-> (piece-content (str "@fn-" name))
+           read-string
+           safe-eval))
+     (catch Exception e
+       (println "Error processing file:" (.getMessage e))))))
 
 (defn upload-copy [upload-info title]
   (doseq [[i {:keys [filename tempfile size]}] (map-indexed vector upload-info)]
@@ -148,9 +166,9 @@
 
 (defn parse-snail-page [content]
   (if-not (empty? content)
-    (-> content
-        (escape-regex-html)
-        (str/replace #"\r?\n" "<br />"))))
+    (str (hic/html [:pre [:code {:class "clojure"} content]]))
+
+    ))
 
 (defn parse-text-page [content]
   (if-not (empty? content)
@@ -159,7 +177,7 @@
         (let [grp-escape (escape-regex-char grp)
               params (vec (map #(str/replace % #"^\"|\"$" "")
                                (re-seq #"\".*?\"|[^\s]+" param-str)))]
-          (if-let [fn (-> (str "knothink.clj.core/fn-" ext) (symbol) (resolve))]
+          (if-let [fn (-> (str "knothink.clj.ext/fn-" ext) (symbol) (resolve))]
             (reset! x (str/replace @x
                                    (re-pattern grp-escape)
                                    (try
@@ -171,8 +189,12 @@
       (-> @x
           (str/replace #"\r?\n" "<br />")))))
 
+(comment
+  (load-fn "img")
+  (-> "knothink.clj.ext/fn-img" (symbol) (resolve)))
 
-(defn cmd-login [{:keys [con]}]
+
+(defn cmd-login [{:keys [con]}]                             ; keys 모두 빼자. 필요한것만 넘기기
   (if (check-or-new-password con (@config :password-file))
     (let [{:keys [session-id]} (gen-session)]
       {:redirect-info {:url     (str "/piece/" (@config :start-page))
@@ -182,10 +204,6 @@
     {:redirect-info {:url "/piece/who-a-u"}}))
 
 (defn cmd-logout []
-  (println {:redirect-info {:url     (str "/piece/" (@config :start-page))
-                            :cookies {"session-id" {:max-age 0
-                                                    :path    "/"
-                                                    :value   nil}}}})
   {:redirect-info {:url     (str "/piece/" (@config :start-page))
                    :cookies {"session-id" {:max-age 0
                                            :path    "/"
@@ -196,7 +214,7 @@
 
 (defn cmd-re-read [title]
   {:title     title
-   :thing-con (piece-content title)})
+   :thing-con (str ".re " (piece-content title))})
 
 (defn cmd-re-write [title con]
   (let [path (piece-file-path title)]

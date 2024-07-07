@@ -16,10 +16,8 @@
 
 
 (defn -main [& _]
+  (create-ns 'knothink.clj.ext)
   (cmd/load-fn)
   (load-config-addition)
   (run-server r/app-handler
               {:port 8888}))
-
-
-
