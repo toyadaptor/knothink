@@ -214,19 +214,22 @@
     (fs/mkdirs (fs/parent path))
     (with-open [w (io/writer path)]
       (.write w con)))
-  {:title     title
-   :thing-con ""})
+  {:title title :thing-con ""})
 
 (defn piece-delete [title]
   (let [path (piece-file-path title)]
-    (fs/delete path)))
+    (fs/delete path)
+    {:title (:start-page @config) :thing-con ""}))
 
 
 (defn piece-move [old new]
-  (if (piece-exist? old)
+  (if (and (piece-exist? old)
+           (not (piece-exist? new)))
     (let [content (piece-content old)]
       (re-write new content)
-      (piece-delete old))))
+      (piece-delete old)
+      {:title new :thing-con ""})
+    {:title old :thing-con (str ".mv " new)}))
 
 
 

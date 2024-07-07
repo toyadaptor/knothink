@@ -106,7 +106,10 @@
                       (= cmd "gl") {:title title :thing-con (git-pull)}
                       (= cmd "gu") {:title title :thing-con (git-push)}
                       (= cmd "dr") {:title title :thing-con (piece-put-in-drawer)}
-                      (= cmd "mv") {:title title :thing-con (piece-move title con)}
+                      (= cmd "mv") (piece-move title con)
+                      (= cmd "rm") (if (= title con)
+                                     (piece-delete title)
+                                     {:title title :thing-con thing})
                       :else (if (and (nil? cmd)
                                      (piece-exist? thing))
                               {:redirect-info {:url (str "/piece/" (str/replace thing #" " "-"))}}
