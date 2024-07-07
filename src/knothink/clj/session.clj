@@ -10,7 +10,8 @@
 
 (defn gen-session []
   (let [id (rand-str 50)]
-    (reset! session {:session-id id})))
+    (reset! session {:session-id id
+                     :expires    (+ (System/currentTimeMillis) (* 60 60 1000))})))
 
 (defn check-or-new-password [raw password-file]
   (if-not (.exists (io/file password-file))
@@ -24,10 +25,8 @@
 (defn check-login-session [session cookie]
   (and (contains? cookie "session-id")
        (not (empty? (:session-id session)))
-       (= (:session-id session) (-> cookie (get "session-id") :value))))
+       (= (:session-id session) (-> cookie (get "session-id") :value))
+       (<= (System/currentTimeMillis) (:expires session))))
 
 (defn check-login [cookie]
   (check-login-session @session cookie))
-
-
-

@@ -88,7 +88,6 @@
                  :thing thing
                  :cmd   cmd
                  :con   con}]
-      (println "input-" input)
       (if (check-login (req :cookies))
         (do
           (upload (req :multipart-params) input)
