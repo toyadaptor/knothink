@@ -74,6 +74,8 @@
 
 
 
+
+
 (defn handler [req]
   (cond
     (str/starts-with? (:uri req) "/piece/")
@@ -104,6 +106,7 @@
                       (= cmd "gl") {:title title :thing-con (git-pull)}
                       (= cmd "gu") {:title title :thing-con (git-push)}
                       (= cmd "dr") {:title title :thing-con (piece-put-in-drawer)}
+                      (= cmd "mv") {:title title :thing-con (piece-move title con)}
                       :else (if (and (nil? cmd)
                                      (piece-exist? thing))
                               {:redirect-info {:url (str "/piece/" (str/replace thing #" " "-"))}}

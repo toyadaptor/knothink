@@ -164,6 +164,8 @@
     (catch Exception e
       (str "'" (.getMessage e) "'"))))
 
+
+
 (defn parse-snail-page [content]
   (if-not (empty? content)
     (str (hic/html [:pre [:code {:class "clojure"} content]]))
@@ -214,5 +216,17 @@
       (.write w con)))
   {:title     title
    :thing-con ""})
+
+(defn piece-delete [title]
+  (let [path (piece-file-path title)]
+    (fs/delete path)))
+
+
+(defn piece-move [old new]
+  (if (piece-exist? old)
+    (let [content (piece-content old)]
+      (re-write new content)
+      (piece-delete old))))
+
 
 
