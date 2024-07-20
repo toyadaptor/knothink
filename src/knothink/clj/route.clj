@@ -16,6 +16,10 @@
             [ring.util.response :refer [redirect]]))
 
 
+(def default-response
+  {:status  200
+   :headers {"Content-Type" "text/html"}
+   :body    nil})
 
 (defn parse-command [thing]
   (if-not (empty? thing)
@@ -81,7 +85,8 @@
     (str/starts-with? (:uri req) "/piece/")
     (let [title (-> (:uri req)
                     (form-decode)
-                    (clojure.string/replace #"^/piece/" ""))
+                    (clojure.string/replace #"^/piece/" "")
+                    (clojure.string/replace #" " "-"))
           thing (or (get (:params req) "thing") "")
           [cmd con] (parse-command thing)
           input {:title title

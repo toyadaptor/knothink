@@ -15,24 +15,10 @@
 
 
 
-(def default-response
-  {:status  200
-   :headers {"Content-Type" "text/html"}
-   :body    nil})
 
 
 
 
-(defn piece-file-path [name]
-  (let [dir (crc8-hash name)]
-    (str (@config :pieces) "/" dir "/" name ".txt")))
-(defn piece-dir-path [name]
-  (let [dir (crc8-hash name)]
-    (str (@config :pieces) "/" dir)))
-
-(defn asset-dir-path [name]
-  (let [dir (crc8-hash name)]
-    (str (@config :assets) "/asset/" dir)))
 
 (defn asset-symlink-make [file]
   (let [[name ext] (fs/split-ext file)]
@@ -76,40 +62,6 @@
                              (t/zoned-date-time (t/now))))
                  #"0" "o")))
 
-(defn safe-eval [code]
-  (try
-    (binding [*ns* (the-ns 'knothink.clj.ext)]
-      (refer 'clojure.core)
-      (eval code))
-    (catch Exception e
-      (println "Error during evaluation:" e))))
-
-(defn process-file [f]
-  (let [name (fs/name f)]
-    (when (str/starts-with? name "@fn")
-      (-> name
-          (str/replace #"\..*" "")
-          (piece-content)
-          read-string
-          safe-eval))))
-
-(defn load-fn
-  ([]
-   (doseq [f (fs/find-files (:pieces @config) #"^@.*")]
-     (try
-       (println "load - " f)
-       (process-file f)
-       (catch Exception e
-         (println "Error processing file:" (.getMessage e))))))
-  ([name]
-   (try
-     (let [content (piece-content (str "@fn-" name))]
-       (println "***" content)
-       (-> (piece-content (str "@fn-" name))
-           read-string
-           safe-eval))
-     (catch Exception e
-       (println "Error processing file:" (.getMessage e))))))
 
 (defn upload-copy [upload-info title]
   (doseq [[i {:keys [filename tempfile size]}] (map-indexed vector upload-info)]
@@ -179,7 +131,7 @@
         (let [grp-escape (escape-regex-char grp)
               params (vec (map #(str/replace % #"^\"|\"$" "")
                                (re-seq #"\".*?\"|[^\s]+" param-str)))]
-          (if-let [fn (-> (str "knothink.clj.ext/fn-" ext) (symbol) (resolve))]
+          (if-let [fn (-> (str "knothink.clj.extension/fn-" ext) (symbol) (resolve))]
             (reset! x (str/replace @x
                                    (re-pattern grp-escape)
                                    (try
@@ -190,10 +142,6 @@
             (println "fn load error - " *ns* (str "fn-" ext)))))
       (-> @x
           (str/replace #"\r?\n" "<br />")))))
-
-(comment
-  (load-fn "img")
-  (-> "knothink.clj.ext/fn-img" (symbol) (resolve)))
 
 
 (defn login [con]

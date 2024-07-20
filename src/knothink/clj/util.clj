@@ -1,5 +1,6 @@
 (ns knothink.clj.util
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [knothink.clj.config :refer [config]]))
 
 (def ^:private crc8-table
   [0x00 0x07 0x0e 0x09 0x1c 0x1b 0x12 0x15
@@ -74,4 +75,14 @@
         (str/replace #">" "&gt;"))
     nil))
 
+(defn piece-file-path [name]
+  (let [dir (crc8-hash name)]
+    (str (@config :pieces) "/" dir "/" name ".txt")))
 
+(defn piece-dir-path [name]
+  (let [dir (crc8-hash name)]
+    (str (@config :pieces) "/" dir)))
+
+(defn asset-dir-path [name]
+  (let [dir (crc8-hash name)]
+    (str (@config :assets) "/asset/" dir)))
