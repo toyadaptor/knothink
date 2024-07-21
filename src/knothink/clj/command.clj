@@ -11,11 +11,8 @@
             [me.raynes.fs :as fs]
             [tick.core :as t])
   (:import (java.io FileNotFoundException)
-           (java.nio.file StandardCopyOption)))
-
-
-
-
+           (java.nio.file StandardCopyOption)
+           (java.util Date)))
 
 (defn asset-symlink-make [file]
   (let [[name ext] (fs/split-ext file)]
@@ -25,60 +22,44 @@
         (fs/mkdirs (fs/parent path))
         (fs/sym-link path target)))))
 
-(defn piece-put-in-drawer []
+(defn put-in-drawer []
   (try
-    (doseq [file (filter #(fs/file? %) (fs/list-dir (:pieces @config)))]
-      (let [[name ext] (fs/split-ext file)
-            target (str (piece-dir-path name) "/" name ext)]
-        (fs/mkdirs (fs/parent target))
-        (fs/move file target StandardCopyOption/REPLACE_EXISTING)
-        (asset-symlink-make (str name ext))))
+    (doseq [file (fs/list-dir (:pieces @config))]
+      (when (fs/file? file)
+        (let [[name ext] (fs/split-ext file)
+              target (str (piece-dir-path name) "/" name ext)]
+          (fs/mkdirs (fs/parent target))
+          (fs/move file target StandardCopyOption/REPLACE_EXISTING)
+          (asset-symlink-make (str name ext)))))
     "'moved'"
-    (catch Exception e
-      (str "'" (.getMessage e) "'"))))
-
+    (catch Exception e (str "'" (.getMessage e) "'"))))
 
 (defn piece-exist? [name]
-  (if-not (empty? name)
-    (fs/exists? (piece-file-path name))
-    false))
+  (and (not (empty? name))
+       (fs/exists? (piece-file-path name))))
 
-(defn chomp-meta [content]
-  (if-not (empty? content)
-    (str/replace content (re-pattern (str "(?s)" #"^\{.*\}")) "")))
-
-(defn chomp-whitespace [content]
-  (if-not (empty? content)
-    (str/replace content (re-pattern (str "(?s)" #"^(\r?\n|\t|\s)*|(\r?\n|\t|\s)*$")) "")))
+(defn piece-meta [name]
+  (when (piece-exist? name)
+    (->> (slurp (piece-file-path name))
+         (re-find (re-pattern (str "(?s)" #"^(\{.*?\})")))
+         first
+         clojure.edn/read-string)))
 
 (defn piece-content [name]
   (if (piece-exist? name)
     (-> (piece-file-path name)
         slurp
         chomp-meta
-        chomp-whitespace)
-    #_(slurp (piece-file-path name))
-    nil))
-
-(defn piece-meta [name]
-  (if (piece-exist? name)
-    (->> (slurp (piece-file-path name))
-         (re-find (re-pattern (str "(?s)" #"^(\{.*?\})")))
-         first
-         (clojure.edn/read-string))
-    nil))
+        chomp-whitespace)))
 
 (defn piece-time [name]
-  (let [path (piece-file-path name)]
-    (str/replace (t/format (t/formatter "yyyyMMdd hhmmss")
-                           (if (fs/exists? path)
-                             (-> (fs/file path)
-                                 .lastModified
-                                 (java.util.Date.)
-                                 (t/zoned-date-time))
-                             (t/zoned-date-time (t/now))))
-                 #"0" "o")))
-
+  (if-let [path (piece-file-path name)]
+    (if (fs/exists? path)
+      (-> (fs/file path)
+          .lastModified
+          (Date.)
+          (t/zoned-date-time)
+          time-format))))
 
 (defn upload-copy [upload-info title]
   (doseq [[i {:keys [filename tempfile size]}] (map-indexed vector upload-info)]
@@ -103,16 +84,16 @@
     (catch Exception e
       (str "'" (.getMessage e) "'"))))
 
-(defn git-pull []
+(defn pull-git []
   (try
     (jgit/with-credentials (@config :git)
                            (jgit/git-pull (jgit/load-repo (@config :pieces))))
-    (piece-put-in-drawer)
+    (put-in-drawer)
     "'pulled'"
     (catch FileNotFoundException _
       (git-clone))))
 
-(defn git-push []
+(defn push-git []
   (try
     (jgit/with-credentials (@config :git)
                            (jgit/git-push (jgit/load-repo (@config :pieces))))
@@ -120,7 +101,7 @@
     (catch FileNotFoundException _
       (git-clone))))
 
-(defn git-add-and-commit []
+(defn commit-git []
   (try
     (let [repo (jgit/load-repo (@config :pieces))]
       (jgit/with-credentials (@config :git)
@@ -133,33 +114,24 @@
     (catch Exception e
       (str "'" (.getMessage e) "'"))))
 
-
-
 (defn parse-snail-page [content]
-  (if-not (empty? content)
-    (str (hic/html [:pre [:code {:class "clojure"} content]]))
-
-    ))
+  (when-not (empty? content)
+    (str (hic/html [:pre [:code {:class "clojure"} content]]))))
 
 (defn parse-text-page [content]
   (if-not (empty? content)
     (let [x (atom content)]
-      (doseq [[grp ext param-str] (re-seq #"@([a-z]+)(?:\s+(.*))@" content)]
+      (doseq [[grp ext param-str] (re-seq #"@([a-z]+)(?:\s+(.*?))@" content)]
         (let [grp-escape (escape-regex-char grp)
               params (vec (map #(str/replace % #"^\"|\"$" "")
                                (re-seq #"\".*?\"|[^\s]+" param-str)))]
           (if-let [fn (-> (str "knothink.clj.extension/fn-" ext) (symbol) (resolve))]
             (reset! x (str/replace @x
                                    (re-pattern grp-escape)
-                                   (try
-                                     (fn params)
-                                     (catch Exception e
-                                       (println e params)
-                                       (format "error - %s" grp-escape)))))
+                                   (try (fn params)
+                                        (catch Exception _ (format "error - %s" grp-escape)))))
             (println "fn load error - " *ns* (str "fn-" ext)))))
-      (-> @x
-          (str/replace #"\r?\n" "<br />")))))
-
+      (str/replace @x #"\r?\n" "<br />"))))
 
 (defn login [title con]
   (if (check-or-new-password con (@config :password-file))
@@ -170,52 +142,53 @@
                                                :value   session-id}}}})
     {:redirect-info {:url "/piece/who-a-u"}}))
 
-(defn re-read [title]
+(defn write-piece [title meta content]
+  (let [path (piece-file-path title)
+        meta (merge meta
+                    (when-not (piece-exist? title) (:meta-init @config)))
+        piece (str meta "\n" content)]
+    (fs/mkdirs (fs/parent path))
+    (with-open [w (io/writer path)]
+      (.write w piece))))
+
+(defn read-content [title]
   {:title     title
    :thing-con (str ".pw " (piece-content title))})
 
-(defn re-write [title con]
-  (let [con (str (piece-meta title) "\n" con)
-        path (piece-file-path title)]
-    (fs/mkdirs (fs/parent path))
-    (with-open [w (io/writer path)]
-      (.write w con)))
+(defn write-content [title content]
+  (write-piece title (piece-meta title) content)
   {:title title :thing-con ""})
 
-(defn re-add [title add]
-  (let [con (str (piece-meta title) "\n" (piece-content title) "\n" add)
-        path (piece-file-path title)]
-    (fs/mkdirs (fs/parent path))
-    (with-open [w (io/writer path)]
-      (.write w con)))
-  {:title title :thing-con ""})
+(defn add-content-head [title head]
+  (let [content (str head "\n" (piece-content title))]
+    (write-piece title (piece-meta title) content)
+    {:title title :thing-con ""}))
 
-(defn meta-read [title]
+(defn add-content-tail [title tail]
+  (let [content (str (piece-content title) "\n" tail)]
+    (write-piece title (piece-meta title) content)
+    {:title title :thing-con ""}))
+
+(defn read-meta [title]
   {:title title :thing-con (str ".mw " (piece-meta title))})
 
-(defn meta-write [title meta]
-  (let [con (str meta "\n" (piece-content title))
-        path (piece-file-path title)]
-    (fs/mkdirs (fs/parent path))
-    (with-open [w (io/writer path)]
-      (.write w con)))
+(defn write-meta [title meta]
+  (write-piece title meta (piece-content title))
   {:title title :thing-con ""})
 
-(defn piece-delete [title]
+(defn delete-piece [title]
   (let [path (piece-file-path title)]
     (fs/delete path)
     {:title (:start-page @config) :thing-con ""}))
 
-
-(defn piece-move [old new]
+(defn move-piece [old new]
   (if (and (piece-exist? old)
            (not (piece-exist? new)))
     (let [content (piece-content old)]
-      (re-write new content)
-      (piece-delete old)
+      (write-content new content)
+      (delete-piece old)
       {:title new :thing-con ""})
     {:title old :thing-con (str ".mv " new)}))
-
 
 (defn user-command [title thing]
   (let [meta (piece-meta title)
@@ -232,5 +205,3 @@
 
       :else
       {:title title :thing-con thing})))
-
-

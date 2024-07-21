@@ -64,7 +64,7 @@
       (str/replace "__CONTENT__" (if (str/starts-with? title "@")
                                    (or (parse-snail-page (piece-content title)) "' ')")
                                    (or (parse-text-page (piece-content title)) "' ')")))
-      (str/replace "__TIME__" (piece-time title))))
+      (str/replace "__TIME__" (or (piece-time title) (now-time-str)))))
 
 (defn response [thing-tpl {:keys [title thing-con redirect-info]}]
   (if-not (nil? redirect-info)
@@ -100,19 +100,20 @@
                                                     :cookies {"session-id" {:max-age 0
                                                                             :path    "/"
                                                                             :value   nil}}}}
-                      (= cmd "pr") (re-read title)
-                      (= cmd "pw") (re-write title con)
-                      (= cmd "ra") (re-add title con)
-                      (= cmd "mr") (meta-read title)
-                      (= cmd "mw") (meta-write title con)
-                      (= cmd "gc") {:title title :thing-con (git-add-and-commit)}
-                      (= cmd "gl") {:title title :thing-con (git-pull)}
-                      (= cmd "gu") {:title title :thing-con (git-push)}
-                      (= cmd "dr") {:title title :thing-con (piece-put-in-drawer)}
-                      (= cmd "mv") (piece-move title con)
-                      (= cmd "rm") (if (= title con)
-                                     (piece-delete title)
+                      (= cmd "mr") (read-meta title)
+                      (= cmd "mw") (write-meta title con)
+                      (= cmd "pr") (read-content title)
+                      (= cmd "pw") (write-content title con)
+                      (= cmd "ph") (add-content-head title con)
+                      (= cmd "pt") (add-content-tail title con)
+                      (= cmd "pm") (move-piece title con)
+                      (= cmd "pd") (if (= title con)
+                                     (delete-piece title)
                                      {:title title :thing-con thing})
+                      (= cmd "gc") {:title title :thing-con (commit-git)}
+                      (= cmd "gl") {:title title :thing-con (pull-git)}
+                      (= cmd "gu") {:title title :thing-con (push-git)}
+                      (= cmd "dr") {:title title :thing-con (put-in-drawer)}
                       :else (if (and (nil? cmd)
                                      (piece-exist? thing))
                               {:redirect-info {:url (str "/piece/" (str/replace thing #" " "-"))}}

@@ -9,6 +9,7 @@
                         :git           {:login (env :git-user)
                                         :pw    (env :git-token)
                                         :repo  (env :git-repository)}
+                        :meta-init     {:guest-input "comment"}
                         :start-page    "main"
                         :404-page      "4o4"}]
               (if-not (fs/exists? (:assets conf))

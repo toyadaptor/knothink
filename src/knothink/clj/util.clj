@@ -1,5 +1,6 @@
 (ns knothink.clj.util
   (:require [clojure.string :as str]
+            [tick.core :as t]
             [knothink.clj.config :refer [config]]))
 
 (def ^:private crc8-table
@@ -86,3 +87,21 @@
 (defn asset-dir-path [name]
   (let [dir (crc8-hash name)]
     (str (@config :assets) "/asset/" dir)))
+
+(defn chomp-meta [content]
+  (if-not (empty? content)
+    (str/replace content (re-pattern (str "(?s)" #"^\{.*\}")) "")))
+
+(defn chomp-whitespace [content]
+  (if-not (empty? content)
+    (str/replace content (re-pattern (str "(?s)" #"^(\r?\n|\t|\s)*|(\r?\n|\t|\s)*$")) "")))
+
+(defn time-format [zoned-date-time]
+  (-> (t/format (t/formatter "yyyyMMdd hhmmss")
+                zoned-date-time)
+      (str/replace "0" "o")))
+
+(defn now-time-str []
+  (-> (t/zoned-date-time (t/now))
+      time-format))
+
