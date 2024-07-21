@@ -10,7 +10,8 @@
             [clojure.string :as str]
             [me.raynes.fs :as fs]
             [tick.core :as t])
-  (:import (java.io FileNotFoundException)
+  (:import (clojure.lang IPersistentMap)
+           (java.io FileNotFoundException)
            (java.nio.file StandardCopyOption)
            (java.util Date)))
 
@@ -144,12 +145,11 @@
 
 (defn write-piece [title meta content]
   (let [path (piece-file-path title)
-        meta (merge meta
+        meta (merge (if (empty? meta) {} meta)
                     (when-not (piece-exist? title) (:meta-init @config)))
         piece (str meta "\n" content)]
     (fs/mkdirs (fs/parent path))
-    (with-open [w (io/writer path)]
-      (.write w piece))))
+    (spit path piece)))
 
 (defn read-content [title]
   {:title     title
@@ -173,8 +173,13 @@
   {:title title :thing-con (str ".mw " (piece-meta title))})
 
 (defn write-meta [title meta]
-  (write-piece title meta (piece-content title))
-  {:title title :thing-con ""})
+  (let [meta (if (empty? meta) "{}" meta)
+        meta-map (read-string meta)]
+    (if (instance? IPersistentMap meta-map)
+      (do (write-piece title meta-map (piece-content title))
+          {:title title :thing-con ""})
+      {:title title :thing-con (str ".mw " meta)})))
+
 
 (defn delete-piece [title]
   (let [path (piece-file-path title)]
