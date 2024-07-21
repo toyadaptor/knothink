@@ -36,16 +36,16 @@
    0xde 0xd9 0xd0 0xd7 0xc2 0xc5 0xcc 0xcb
    0xe6 0xe1 0xe8 0xef 0xfa 0xfd 0xf4 0xf3])
 
-(defn- crc8-table-lookup [crc]
+(defn crc8-table-lookup [crc]
   (nth crc8-table crc))
 
-(defn- crc8-update [crc byte]
+(defn crc8-update [crc byte]
   (-> crc
       (bit-xor (bit-and 0xFF byte))
       (bit-and 0xFF)
       (crc8-table-lookup)))
 
-(defn- crc8 [^String input]
+(defn crc8 [^String input]
   (let [bytes (.getBytes input "UTF-8")
         initial-crc 0]
     (loop [crc initial-crc

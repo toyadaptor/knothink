@@ -77,9 +77,6 @@
 
 
 
-
-
-
 (defn handler [req]
   (cond
     (str/starts-with? (:uri req) "/piece/")
@@ -99,13 +96,15 @@
           (response (template-thing-in)
                     (cond
                       (= cmd "go") {:redirect-info {:url (str "/piece/" (str/replace con #" " "-"))}}
-                      (= cmd "bi") {:redirect-info {:url     (str "/piece/" (@config :start-page))
+                      (= cmd "bi") {:redirect-info {:url     (str "/piece/" title)
                                                     :cookies {"session-id" {:max-age 0
                                                                             :path    "/"
                                                                             :value   nil}}}}
-                      (= cmd "re") (if (empty? con)
-                                     (re-read title)
-                                     (re-write title con))
+                      (= cmd "pr") (re-read title)
+                      (= cmd "pw") (re-write title con)
+                      (= cmd "ra") (re-add title con)
+                      (= cmd "mr") (meta-read title)
+                      (= cmd "mw") (meta-write title con)
                       (= cmd "gc") {:title title :thing-con (git-add-and-commit)}
                       (= cmd "gl") {:title title :thing-con (git-pull)}
                       (= cmd "gu") {:title title :thing-con (git-push)}
@@ -122,13 +121,14 @@
         ; guest
         (response (template-thing-out)
                   (cond
-                    (= cmd "hi") (login con)
-                    :else {:title     title
-                           :thing-con thing}))))
-    :else (-> (redirect (str "/piece/" (@config :start-page))))
-    :default {:status  404
-              :headers {"Content-Type" "text/html"}
-              :body    (piece-content "@404")}))
+                    (= cmd "hi") (login title con)
+                    :else (user-command title thing)))))
+
+    (= "/" (:uri req))
+    (-> (redirect (str "/piece/" (@config :start-page))))
+
+    :default
+    (-> (redirect (str "/piece/" (@config :404-page))))))
 
 (def app-handler
   (-> handler
@@ -138,6 +138,3 @@
                                     :allow-symlinks? true})
       (wrap-multipart-params {:max-file-size  10240000
                               :max-file-count 15})))
-
-
-

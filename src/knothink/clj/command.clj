@@ -17,9 +17,6 @@
 
 
 
-
-
-
 (defn asset-symlink-make [file]
   (let [[name ext] (fs/split-ext file)]
     (if-not (= ".txt" ext)
@@ -46,9 +43,29 @@
     (fs/exists? (piece-file-path name))
     false))
 
+(defn chomp-meta [content]
+  (if-not (empty? content)
+    (str/replace content (re-pattern (str "(?s)" #"^\{.*\}")) "")))
+
+(defn chomp-whitespace [content]
+  (if-not (empty? content)
+    (str/replace content (re-pattern (str "(?s)" #"^(\r?\n|\t|\s)*|(\r?\n|\t|\s)*$")) "")))
+
 (defn piece-content [name]
   (if (piece-exist? name)
-    (slurp (piece-file-path name))
+    (-> (piece-file-path name)
+        slurp
+        chomp-meta
+        chomp-whitespace)
+    #_(slurp (piece-file-path name))
+    nil))
+
+(defn piece-meta [name]
+  (if (piece-exist? name)
+    (->> (slurp (piece-file-path name))
+         (re-find (re-pattern (str "(?s)" #"^(\{.*?\})")))
+         first
+         (clojure.edn/read-string))
     nil))
 
 (defn piece-time [name]
@@ -144,10 +161,10 @@
           (str/replace #"\r?\n" "<br />")))))
 
 
-(defn login [con]
+(defn login [title con]
   (if (check-or-new-password con (@config :password-file))
     (let [{:keys [session-id]} (gen-session)]
-      {:redirect-info {:url     (str "/piece/" (@config :start-page))
+      {:redirect-info {:url     (str "/piece/" title)
                        :cookies {"session-id" {:max-age 86400
                                                :path    "/"
                                                :value   session-id}}}})
@@ -155,10 +172,30 @@
 
 (defn re-read [title]
   {:title     title
-   :thing-con (str ".re " (piece-content title))})
+   :thing-con (str ".pw " (piece-content title))})
 
 (defn re-write [title con]
-  (let [path (piece-file-path title)]
+  (let [con (str (piece-meta title) "\n" con)
+        path (piece-file-path title)]
+    (fs/mkdirs (fs/parent path))
+    (with-open [w (io/writer path)]
+      (.write w con)))
+  {:title title :thing-con ""})
+
+(defn re-add [title add]
+  (let [con (str (piece-meta title) "\n" (piece-content title) "\n" add)
+        path (piece-file-path title)]
+    (fs/mkdirs (fs/parent path))
+    (with-open [w (io/writer path)]
+      (.write w con)))
+  {:title title :thing-con ""})
+
+(defn meta-read [title]
+  {:title title :thing-con (str ".mw " (piece-meta title))})
+
+(defn meta-write [title meta]
+  (let [con (str meta "\n" (piece-content title))
+        path (piece-file-path title)]
     (fs/mkdirs (fs/parent path))
     (with-open [w (io/writer path)]
       (.write w con)))
@@ -179,5 +216,21 @@
       {:title new :thing-con ""})
     {:title old :thing-con (str ".mv " new)}))
 
+
+(defn user-command [title thing]
+  (let [meta (piece-meta title)
+        fn-name (:guest-input meta)
+        prefix (str "@" fn-name " ")]
+    (cond
+      (and fn-name (empty? thing))
+      {:title title :thing-con prefix}
+
+      (and fn-name (str/starts-with? thing prefix))
+      (if-let [fn (resolve (symbol (str "knothink.clj.extension/fn-" fn-name)))]
+        {:title title :thing-con (fn [title (str/replace thing prefix "")])}
+        {:title title :thing-con (str "no fn - " fn-name)})
+
+      :else
+      {:title title :thing-con thing})))
 
 

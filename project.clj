@@ -14,6 +14,7 @@
                  [clj-jgit "1.0.2"]
                  [biscuit "1.0.0"]]
   :source-paths ["src"]
+  :test-paths ["test"]
   :plugins [[lein-environ "1.2.0"]
             [lein-cljsbuild "1.1.8"]
             [lein-ring "0.12.6"]
