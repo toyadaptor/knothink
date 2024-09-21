@@ -2,6 +2,7 @@
   (:require [environ.core :refer [env]]
             [me.raynes.fs :as fs]))
 
+(def knothink-cat "knothink")
 (def config (let [conf {:base-dir      (or (env :base-dir) "/tmp/knothink")
                         :password-file (str (env :base-dir) "/pw")
                         :pieces        (str (env :base-dir) "/pieces")

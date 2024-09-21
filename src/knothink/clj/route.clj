@@ -2,7 +2,7 @@
   (:gen-class)
   (:use org.httpkit.server)
   (:require [knothink.clj.util :refer :all]
-            [knothink.clj.config :refer [config]]
+            [knothink.clj.config :refer [config knothink-cat]]
             [knothink.clj.session :refer [check-login]]
             [knothink.clj.command :refer :all]
             [clojure.string :as str]
@@ -28,9 +28,9 @@
 
 (defn template []
   (let [p "@tpl"
-        path (piece-file-path p)]
+        path (piece-file-path knothink-cat p)]
     (if (.exists (io/file path))
-      (str (hic/html (clojure.edn/read-string (or (piece-content p)
+      (str (hic/html (clojure.edn/read-string (or (piece-content knothink-cat p)
                                                   ""))))
       (str (hic/html [:html
                       [:head
@@ -42,9 +42,9 @@
 
 (defn template-thing-in []
   (let [p "@tpl-thing-in"
-        path (piece-file-path p)]
+        path (piece-file-path knothink-cat p)]
     (if (.exists (io/file path))
-      (str (hic/html (clojure.edn/read-string (or (piece-content p)
+      (str (hic/html (clojure.edn/read-string (or (piece-content knothink-cat p)
                                                   ""))))
       (str (hic/html [:form {:method "post"}
                       [:p [:textarea {:id "thing" :name "thing"}]]
@@ -52,84 +52,87 @@
 
 (defn template-thing-out []
   (let [p "@tpl-thing-out"
-        path (piece-file-path p)]
+        path (piece-file-path knothink-cat p)]
     (if (.exists (io/file path))
-      (str (hic/html (clojure.edn/read-string (piece-content p))))
+      (str (hic/html (clojure.edn/read-string (piece-content knothink-cat p))))
       (str (hic/html [:form {:method "post"}
                       [:p [:input {:type "text" :id "thing" :name "thing" :autocomplete "off"}]]
                       [:p [:button {:type "submit" :id "submit"} "submit"]]])))))
-(defn parse-page [title]
+(defn parse-page [cat title]
   (-> (template)
+      (str/replace "__CAT__" (or cat ""))
       (str/replace "__TITLE__" title)
       (str/replace "__CONTENT__" (if (str/starts-with? title "@")
-                                   (or (parse-snail-page (piece-content title)) "' ')")
-                                   (or (parse-text-page (piece-content title)) "' ')")))
-      (str/replace "__TIME__" (or (piece-time title) (now-time-str)))))
+                                   (or (parse-snail-page (piece-content cat title)) "' ')")
+                                   (or (parse-text-page (piece-content cat title)) "' ')")))
+      (str/replace "__TIME__" (or (piece-time cat title) (now-time-str)))))
 
-(defn response [thing-tpl {:keys [title thing-con redirect-info]}]
+(defn response [thing-tpl {:keys [cat title thing-con redirect-info]}]
   (if-not (nil? redirect-info)
     (-> (redirect (:url redirect-info))
         (assoc :cookies (-> redirect-info :cookies)))
     (-> default-response
-        (assoc :body (-> (parse-page title)
+        (assoc :body (-> (parse-page cat title)
                          (str/replace "__THING__" thing-tpl)
                          (str/replace "__THING_CON__" thing-con))))))
 
 
 
+
+
 (defn handler [req]
-  (cond
-    (str/starts-with? (:uri req) "/piece/")
-    (let [title (-> (:uri req)
-                    (form-decode)
-                    (clojure.string/replace #"^/piece/" "")
-                    (clojure.string/replace #" " "-"))
-          thing (or (get (:params req) "thing") "")
-          [cmd con] (parse-command thing)
-          input {:title title
-                 :thing thing
-                 :cmd   cmd
-                 :con   con}]
-      (if (check-login (req :cookies))
-        (do
-          (upload (req :multipart-params) input)
-          (response (template-thing-in)
-                    (cond
-                      (= cmd "go") {:redirect-info {:url (str "/piece/" (str/replace con #" " "-"))}}
-                      (= cmd "bi") {:redirect-info {:url     (str "/piece/" title)
-                                                    :cookies {"session-id" {:max-age 0
-                                                                            :path    "/"
-                                                                            :value   nil}}}}
-                      (= cmd "mr") (read-meta title)
-                      (= cmd "mw") (write-meta title con)
-                      (= cmd "pr") (read-content title)
-                      (= cmd "pw") (write-content title con)
-                      (= cmd "ph") (add-content-head title con)
-                      (= cmd "pt") (add-content-tail title con)
-                      (= cmd "pm") (move-piece title con)
-                      (= cmd "pd") (if (= title con)
-                                     (delete-piece title)
-                                     {:title title :thing-con thing})
-                      (= cmd "gc") {:title title :thing-con (commit-git)}
-                      (= cmd "gl") {:title title :thing-con (pull-git)}
-                      (= cmd "gu") {:title title :thing-con (push-git)}
-                      (= cmd "dr") {:title title :thing-con (put-in-drawer)}
-                      :else (if (and (nil? cmd)
-                                     (piece-exist? thing))
-                              {:redirect-info {:url (str "/piece/" (str/replace thing #" " "-"))}}
-                              {:title title :thing-con thing}))))
+  (if (str/ends-with? (:uri req) "/favicon.ico")
+    default-response
+    (let [[cat title] (parse-url-path (:uri req))]
+      (cond
 
-        ; guest
-        (response (template-thing-out)
-                  (cond
-                    (= cmd "hi") (login title con)
-                    :else (user-command title thing)))))
+        (not (str/blank? title))
+        (let [title (-> title
+                        (form-decode)
+                        (str/replace #" " "-"))
+              thing (or (get (:params req) "thing") "")
+              [cmd con] (parse-command thing)
+              input {:title title
+                     :thing thing
+                     :cmd   cmd
+                     :con   con}]
+          (if (check-login (req :cookies))
+            (do
+              (upload (req :multipart-params) input)
+              (response (template-thing-in)
+                        (cond
+                          (= cmd "go") {:redirect-info {:url (str "/" cat "/" (str/replace con #" " "-"))}}
+                          (= cmd "bi") {:redirect-info {:url     (str "/" cat "/" title)
+                                                        :cookies {"session-id" {:max-age 0
+                                                                                :path    "/"
+                                                                                :value   nil}}}}
+                          (= cmd "mr") (read-meta cat title)
+                          (= cmd "mw") (write-meta cat title con)
+                          (= cmd "pr") (read-content cat title)
+                          (= cmd "pw") (write-content cat title con)
+                          (= cmd "ph") (add-content-head cat title con)
+                          (= cmd "pt") (add-content-tail cat title con)
+                          (= cmd "pm") (move-piece cat title con)
+                          (= cmd "pd") (if (= title con)
+                                         (delete-piece cat title)
+                                         {:title title :thing-con thing})
+                          (= cmd "gc") {:cat cat :title title :thing-con (commit-git)}
+                          (= cmd "gl") {:cat cat :title title :thing-con (pull-git)}
+                          (= cmd "gu") {:cat cat :title title :thing-con (push-git)}
+                          ;(= cmd "dr") {:cat cat :title title :thing-con (put-in-drawer)}
+                          :else (if (and (nil? cmd)
+                                         (piece-exist? cat thing))
+                                  {:redirect-info {:url (str "/" cat "/" (str/replace thing #" " "-"))}}
+                                  {:cat cat :title title :thing-con thing}))))
 
-    (= "/" (:uri req))
-    (-> (redirect (str "/piece/" (@config :start-page))))
+            ; guest
+            (response (template-thing-out)
+                      (cond
+                        (= cmd "hi") (login title con)
+                        :else (user-command cat title thing)))))
 
-    :default
-    (-> (redirect (str "/piece/" (@config :404-page))))))
+        :else
+        (-> (redirect (str "/" (@config :start-page))))))))
 
 (def app-handler
   (-> handler
