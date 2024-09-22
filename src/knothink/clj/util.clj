@@ -51,7 +51,14 @@
 
 
 (defn parse-url-path [path]
-  (let [[_ cat subject] (re-matches #"^/([^/]+)(?:/([^/]*))?.*$" path)]
+  (let [path (if (str/ends-with? path "/")
+               (str path "_") path)
+        [_ cat subject] (re-matches #"^/([^/]+)(?:/([^/]*))?.*$" path)]
     (if (str/blank? subject)
       [nil cat]
       [cat subject])))
+
+(defn generate-url [cat title]
+  (if (nil? cat)
+    (str "/" title)
+    (str "/" cat "/" title)))

@@ -135,10 +135,10 @@
             (println "fn load error - " *ns* (str "fn-" ext)))))
       (str/replace @x #"\r?\n" "<br />"))))
 
-(defn login [title con]
+(defn login [cat title con]
   (if (check-or-new-password con (@config :password-file))
     (let [{:keys [session-id]} (gen-session)]
-      {:redirect-info {:url     (str "/piece/" title)
+      {:redirect-info {:url     (generate-url cat title)
                        :cookies {"session-id" {:max-age 86400
                                                :path    "/"
                                                :value   session-id}}}})

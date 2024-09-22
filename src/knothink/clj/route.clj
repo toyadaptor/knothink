@@ -81,11 +81,10 @@
 
 
 (defn handler [req]
-  (if (str/ends-with? (:uri req) "/favicon.ico")
+  (if (str/ends-with? (:uri req) "/favicon.ico")            ; TODO
     default-response
     (let [[cat title] (parse-url-path (:uri req))]
       (cond
-
         (not (str/blank? title))
         (let [title (-> title
                         (form-decode)
@@ -101,8 +100,11 @@
               (upload (req :multipart-params) input)
               (response (template-thing-in)
                         (cond
-                          (= cmd "go") {:redirect-info {:url (str "/" cat "/" (str/replace con #" " "-"))}}
-                          (= cmd "bi") {:redirect-info {:url     (str "/" cat "/" title)
+                          (= cmd "go") (let [title (str/replace con #" " "-")]
+                                         {:redirect-info {:url (if (str/starts-with? con "/")
+                                                                 con
+                                                                 (generate-url cat title))}})
+                          (= cmd "bi") {:redirect-info {:url     (generate-url cat title)
                                                         :cookies {"session-id" {:max-age 0
                                                                                 :path    "/"
                                                                                 :value   nil}}}}
@@ -128,7 +130,7 @@
             ; guest
             (response (template-thing-out)
                       (cond
-                        (= cmd "hi") (login title con)
+                        (= cmd "hi") (login cat title con)
                         :else (user-command cat title thing)))))
 
         :else
