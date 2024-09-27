@@ -10,30 +10,11 @@
             [clojure.string :as str]
             [me.raynes.fs :as fs]
             [tick.core :as t])
-  (:import (clojure.lang IPersistentMap)
+  (:import (clojure.lang Atom IPersistentMap)
            (java.io FileNotFoundException)
-           (java.nio.file StandardCopyOption)
-           (java.util Date)))
+           (java.util Date)
+           (java.util.regex Matcher)))
 
-;(defn asset-symlink-make [file]
-;  (let [[name ext] (fs/split-ext file)]
-;    (if-not (= ".txt" ext)
-;      (let [target (str (piece-dir-path name) "/" file)
-;            path (str (asset-dir-path name) "/" file)]
-;        (fs/mkdirs (fs/parent path))
-;        (fs/sym-link path target)))))
-
-;(defn put-in-drawer []
-;  (try
-;    (doseq [file (fs/list-dir (str (:pieces @config) "/" knothink-cat))]
-;      (when (fs/file? file)
-;        (let [[name ext] (fs/split-ext file)
-;              target (str (piece-dir-path name) "/" name ext)]
-;          (fs/mkdirs (fs/parent target))
-;          (fs/move file target StandardCopyOption/REPLACE_EXISTING)
-;          (asset-symlink-make (str name ext)))))
-;    "'moved'"
-;    (catch Exception e (str "'" (.getMessage e) "'"))))
 
 (defn piece-exist? [cat name]
   (and (not (empty? name))
@@ -120,20 +101,56 @@
   (when-not (empty? content)
     (str (hic/html [:pre [:code {:class "clojure"} content]]))))
 
-(defn parse-text-page [content]
-  (if-not (empty? content)
-    (let [x (atom content)]
-      (doseq [[grp ext param-str] (re-seq #"@([a-z]+)(?:\s+(.*?))@" content)]
-        (let [grp-escape (escape-regex-char grp)
-              params (vec (map #(str/replace % #"^\"|\"$" "")
-                               (re-seq #"\".*?\"|[^\s]+" param-str)))]
-          (if-let [fn (-> (str "knothink.clj.extension/fn-" ext) (symbol) (resolve))]
-            (reset! x (str/replace @x
-                                   (re-pattern grp-escape)
-                                   (try (fn params)
-                                        (catch Exception _ (format "error - %s" grp-escape)))))
-            (println "fn load error - " *ns* (str "fn-" ext)))))
-      (str/replace @x #"\r?\n" "<br />"))))
+(defn parse-text-page-code [^Atom content ^Atom box]
+  (doseq [[i [grp lang code]] (map-indexed vector (re-seq #"(?s)```(.*?)\n(.*?)```" @content))]
+    (let [k (str "!#CODE_REPL_" i "#!")
+          lang (if (empty? lang) "clojure" lang)]
+      (reset! box (assoc @box k (str (hic/html [:pre [:code {:class lang}
+                                                      code]]))))
+      (reset! content (str/replace @content
+                             (re-pattern (escape-regex-char grp))
+                             k)))))
+
+(defn parse-text-page-fn [^Atom content ^Atom box]
+  (doseq [[i [grp ext param-str]] (map-indexed vector (re-seq #"@([a-z]+)(?:\s+(.*?))@" @content))]
+    (let [k (str "!#FN_REPL_" i "#!")
+          grp-escape (escape-regex-char grp)
+          params (vec (map #(str/replace % #"^\"|\"$" "")
+                           (re-seq #"\".*?\"|[^\s]+" param-str)))]
+      (if-let [fn (-> (str "knothink.clj.extension/fn-" ext) (symbol) (resolve))]
+        (do
+          (reset! box (assoc @box k (try (fn params)
+                                         (catch Exception _ (format "error - %s" grp-escape)))))
+          (reset! content (str/replace @content
+                                       (re-pattern grp-escape)
+                                       k)))
+        (println "fn load error - " *ns* (str "fn-" ext))))))
+
+(defn parse-text-page [piece-content]
+  (if-not (empty? piece-content)
+    (let [content (atom piece-content)
+          box (atom {})]
+      (parse-text-page-code content box)
+      (parse-text-page-fn content box)
+
+      ; restore
+      (reset! content (str/replace @content #"\r?\n" "<br />"))
+      (doseq [[k v] @box
+              :let [k-escape (escape-regex-char k)]]
+        (reset! content (str/replace @content
+                               (re-pattern k-escape)
+                               (Matcher/quoteReplacement v))))
+      @content)))
+
+
+(comment
+  (escape-regex-char "!#CODE_REPL_0#!")
+  (doseq [[grp con]
+          (map-indexed vector (re-seq #"(?s)@(.*?) (.*?)@" "hello @fn p1@ @world p2@"))]
+    (println grp con))
+
+  )
+
 
 (defn login [cat title con]
   (if (check-or-new-password con (@config :password-file))
@@ -212,3 +229,9 @@
 
       :else
       {:cat cat :title title :thing-con thing})))
+
+
+
+(comment
+  (str (hic/html [:pre [:code {:class "clojure"} "con"]]))
+  )

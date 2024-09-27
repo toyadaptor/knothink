@@ -1,5 +1,6 @@
 (ns knothink.clj.util
   (:require [clojure.string :as str]
+            [me.raynes.fs :as fs]
             [tick.core :as t]
             [knothink.clj.config :refer [config]]))
 
@@ -62,3 +63,7 @@
   (if (nil? cat)
     (str "/" title)
     (str "/" cat "/" title)))
+
+(defn recent-pages [cat]
+  (fs/list-dir (str (@config :pieces) "/" cat)))
+
