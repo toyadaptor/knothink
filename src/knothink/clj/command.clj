@@ -1,47 +1,19 @@
 (ns knothink.clj.command
   (:gen-class)
-  (:use org.httpkit.server)
-  (:require [knothink.clj.util :refer :all]
-            [knothink.clj.config :refer [config knothink-cat]]
-            [knothink.clj.session :refer [gen-session check-or-new-password]]
-            [hiccup2.core :as hic]
-            [clj-jgit.porcelain :as jgit]
+  (:require [clj-jgit.porcelain :as jgit]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [me.raynes.fs :as fs]
-            [tick.core :as t])
+            [hiccup2.core :as hic]
+            [knothink.clj.config :refer [config]]
+            [knothink.clj.session :refer [check-or-new-password gen-session]]
+            [knothink.clj.util :refer :all]
+            [me.raynes.fs :as fs])
+  (:use [org.httpkit.server])
   (:import (clojure.lang Atom IPersistentMap)
            (java.io FileNotFoundException)
-           (java.util Date)
            (java.util.regex Matcher)))
 
 
-(defn piece-exist? [cat name]
-  (and (not (empty? name))
-       (fs/exists? (piece-file-path cat name))))
-
-(defn piece-meta [cat name]
-  (when (piece-exist? cat name)
-    (->> (slurp (piece-file-path cat name))
-         (re-find (re-pattern (str "(?s)" #"^(\{.*?\})")))
-         first
-         clojure.edn/read-string)))
-
-(defn piece-content [cat name]
-  (if (piece-exist? cat name)
-    (-> (piece-file-path cat name)
-        slurp
-        chomp-meta
-        chomp-whitespace)))
-
-(defn piece-time [cat name]
-  (if-let [path (piece-file-path cat name)]
-    (if (fs/exists? path)
-      (-> (fs/file path)
-          .lastModified
-          (Date.)
-          (t/zoned-date-time)
-          time-format))))
 
 (defn upload-copy [upload-info title]
   (doseq [[i {:keys [filename tempfile size]}] (map-indexed vector upload-info)]

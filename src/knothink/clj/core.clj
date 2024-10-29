@@ -3,8 +3,7 @@
   (:use org.httpkit.server)
   (:require [knothink.clj.route :as r]
             [knothink.clj.config :refer [config knothink-cat]]
-            [knothink.clj.command :refer [piece-content]]
-            [clojure.string :as str]
+            [knothink.clj.util :refer :all]
             [me.raynes.fs :as fs]))
 
 

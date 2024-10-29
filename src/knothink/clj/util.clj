@@ -2,7 +2,8 @@
   (:require [clojure.string :as str]
             [me.raynes.fs :as fs]
             [tick.core :as t]
-            [knothink.clj.config :refer [config]]))
+            [knothink.clj.config :refer [config]])
+  (:import (java.util Date)))
 
 (defn rand-str [len]
   (apply str (take len (repeatedly #(get "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -20,18 +21,7 @@
         (str/replace #">" "&gt;"))
     nil))
 
-(defn piece-file-path [cat name]
-  (if (nil? cat)
-    (str (@config :pieces) "/" name ".txt")
-    (str (@config :pieces) "/" cat "/" name ".txt")))
 
-;(defn piece-dir-path [name]
-;  (let [dir (crc8-hash name)]
-;    (str (@config :pieces) "/" dir)))
-
-;(defn asset-dir-path [name]
-;  (let [dir (crc8-hash name)]
-;    (str (@config :assets) "/asset/" dir)))
 
 (defn chomp-meta [content]
   (if-not (empty? content)
@@ -64,6 +54,35 @@
     (str "/" title)
     (str "/" cat "/" title)))
 
-(defn recent-pages [cat]
-  (fs/list-dir (str (@config :pieces) "/" cat)))
+(defn piece-file-path [cat name]
+  (if (nil? cat)
+    (str (@config :pieces) "/" name ".txt")
+    (str (@config :pieces) "/" cat "/" name ".txt")))
+
+(defn piece-exist? [cat name]
+  (and (not (empty? name))
+       (fs/exists? (piece-file-path cat name))))
+
+(defn piece-meta [cat name]
+  (when (piece-exist? cat name)
+    (->> (slurp (piece-file-path cat name))
+         (re-find (re-pattern (str "(?s)" #"^(\{.*?\})")))
+         first
+         clojure.edn/read-string)))
+
+(defn piece-content [cat name]
+  (if (piece-exist? cat name)
+    (-> (piece-file-path cat name)
+        slurp
+        chomp-meta
+        chomp-whitespace)))
+
+(defn piece-time [cat name]
+  (if-let [path (piece-file-path cat name)]
+    (if (fs/exists? path)
+      (-> (fs/file path)
+          .lastModified
+          (Date.)
+          (t/zoned-date-time)
+          time-format))))
 
