@@ -17,28 +17,25 @@
     (catch Exception e
       (println "Error during evaluation:" e))))
 
-(defn process-file [cat f]
-  (let [name (fs/name f)]
-    (when (str/starts-with? name "@fn-")
-      (-> (piece-content cat (str/replace name #"\..*" ""))
-          read-string
-          safe-eval))))
+(defn eval-piece [cat name]
+  (try
+    (println "* load -" name)
+    (-> (piece-content cat name)
+        load-string
+        safe-eval)
+    (catch Exception e
+      (println "Error processing piece:" (.getMessage e)))))
 
 (defn load-fn
   ([cat]
    (doseq [f (fs/find-files (str (:pieces @config) "/" cat) #"^@fn-.*")]
      (try
-       (println "load - " f)
-       (process-file cat f)
+       (eval-piece cat (fs/name f))
        (catch Exception e
          (println "Error processing file:" (.getMessage e))))))
   ([cat name]
    (try
-     (let [content (piece-content cat (str "@fn-" name))]
-       (println "***" content)
-       (-> (piece-content cat (str "@fn-" name))
-           read-string
-           safe-eval))
+     (eval-piece cat (str "@fn-" name))
      (catch Exception e
        (println "Error processing file:" (.getMessage e))))))
 
@@ -57,5 +54,5 @@
               {:port 8888}))
 
 (comment
-  (load-fn))
+  (load-fn knothink-cat))
 
