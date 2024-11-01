@@ -89,7 +89,7 @@
           grp-escape (escape-regex-char grp)
           params (vec (map #(str/replace % #"^\"|\"$" "")
                            (re-seq #"\".*?\"|[^\s]+" param-str)))]
-      (if-let [fn (-> (str "knothink.clj.extension/fn-" ext) (symbol) (resolve))]
+      (if-let [fn (-> (format "knothink.clj.extension.fn-%s/fn-%s" ext ext) (symbol) (resolve))]
         (do
           (reset! box (assoc @box k (try (fn params)
                                          (catch Exception _ (format "error - %s" grp-escape)))))
@@ -195,9 +195,9 @@
       {:cat cat :title title :thing-con prefix}
 
       (and fn-name (str/starts-with? thing prefix))
-      (if-let [fn (resolve (symbol (str "knothink.clj.extension/fn-" fn-name)))]
-        {:cat cat :title title :thing-con (fn [title (str/replace thing prefix "")])}
-        {:cat cat title title :thing-con (str "no fn - " fn-name)})
+      (if-let [fn (-> (format "knothink.clj.extension.fn-%s/fn-%s" fn-name fn-name) (symbol) (resolve))]
+        {:cat cat :title title :thing-con (fn [cat title (str/replace thing prefix "")])}
+        {:cat cat :title title :thing-con (str "no fn - " fn-name)})
 
       :else
       {:cat cat :title title :thing-con thing})))
